@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns="http://www.springframework.org/schema/beans"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-4.3.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-4.3.xsd">
+
+    <context:component-scan base-package="com.vvsvip"/>
+
+    <context:property-placeholder location="classpath:config/jdbc.properties"/>
+
+    <aop:aspectj-autoproxy proxy-target-class="true"/>
+
+    <bean id="dataSource" class="com.atomikos.jdbc.AtomikosDataSourceBean"
+          init-method="init" destroy-method="close">
+        <property name="uniqueResourceName" value="ds1"/>
+        <property name="xaDataSourceClassName" value="com.mysql.jdbc.jdbc2.optional.MysqlXADataSource"/>
+        <property name="xaProperties">
+            <props>
+                <prop key="URL">${jdbc.url}</prop>
+                <prop key="user">${jdbc.username}</prop>
+                <prop key="password">${jdbc.password}</prop>
+            </props>
+        </property>
+        <!--  连接池中保留的最小连接数 -->
+        <property name="minPoolSize" value="5"/>
+        <!--  连接池中保留的最大连接数  -->
+        <property name="maxPoolSize" value="20"/>
+        <!--  最大空闲时间,60秒内未使用则连接被丢弃。若为0则永不丢弃。Default:  -->
+        <property name="maxIdleTime" value="60"/>
+        <property name="testQuery">
+            <value>select 1</value>
+        </property>
+    </bean>
+
+
+    <!--基于注解的事务管理-->
+    <bean id="userTransactionService" class="com.atomikos.icatch.config.UserTransactionServiceImp"
+          init-method="init" destroy-method="shutdownForce">
+        <constructor-arg>
+            <props>
+                <prop key="com.atomikos.icatch.service">com.atomikos.icatch.standalone.UserTransactionServiceFactory
+                </prop>
+            </props>
+        </constructor-arg>
+    </bean>
+
+    <bean id="atomikosTransactionManager"
+          class="com.atomikos.icatch.jta.UserTransactionManager"
+          depends-on="userTransactionService"
+          init-method="init" destroy-method="close">
+        <property name="forceShutdown" value="false"/>
+    </bean>
+
+    <bean id="atomikosUserTransaction" class="com.atomikos.icatch.jta.UserTransactionImp">
+        <property name="transactionTimeout" value="3000"/>
+    </bean>
+
+    <!-- 分布式事务管理器 -->
+    <bean id="transactionManager" class="com.vvsvip.common.tx.ZkJtaTransactionManager">
+        <property name="transactionManager" ref="atomikosTransactionManager"/>
+        <property name="userTransaction" ref="atomikosUserTransaction"/>
+    </bean>
+
+
+    <bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="configLocation" value="classpath:mybatis-config.xml"/>
+        <property name="mapperLocations" value="classpath*:**/*Mapper.xml"/>
+    </bean>
+
+    <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.vvsvip"/>
+        <property name="sqlSessionFactoryBeanName" value="sqlSessionFactoryBean"/>
+    </bean>
+
+
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxTotal" value="30"/>
+        <property name="maxIdle" value="10"/>
+        <property name="numTestsPerEvictionRun" value="1024"/>
+        <property name="timeBetweenEvictionRunsMillis" value="30000"/>
+        <property name="minEvictableIdleTimeMillis" value="180000"/>
+        <property name="softMinEvictableIdleTimeMillis" value="10000"/>
+        <property name="maxWaitMillis" value="1500"/>
+        <property name="testOnBorrow" value="true"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="blockWhenExhausted" value="false"/>
+    </bean>
+    <bean id="shardedJedisPool" class="redis.clients.jedis.ShardedJedisPool" destroy-method="close">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig"/>
+        <constructor-arg name="shards">
+            <list>
+                <bean class="redis.clients.jedis.JedisShardInfo">
+                    <constructor-arg name="host" value="127.0.0.1"/>
+                    <constructor-arg name="port" value="6379"/>
+                    <property name="password" value="admin"/>
+                </bean>
+            </list>
+        </constructor-arg>
+    </bean>
+
+    <bean id="distributedLock" class="com.vvsvip.common.lock.DistributedLock">
+        <constructor-arg name="zookeeper">
+            <bean class="org.apache.zookeeper.ZooKeeper">
+                <constructor-arg name="connectString" value="192.168.214.100:2181,192.168.214.101:2181"/>
+                <constructor-arg name="sessionTimeout" value="5000"/>
+                <constructor-arg name="watcher">
+                    <bean class="com.vvsvip.common.lock.DefaultWatcher"/>
+                </constructor-arg>
+            </bean>
+        </constructor-arg>
+    </bean>
+    <bean id="zkClient" class="org.I0Itec.zkclient.ZkClient" scope="prototype">
+        <constructor-arg name="zkServers" value="192.168.214.100:2181,192.168.214.101:2181"/>
+        <constructor-arg name="sessionTimeout" value="5000"/>
+        <constructor-arg name="connectionTimeout" value="20000"/>
+    </bean>
+
+    <bean id="distributedTransactionProviderSideAOP" class="com.vvsvip.common.tx.DistributedTransactionProviderSideAOP"
+          scope="prototype"/>
+    <bean id="distributedTransactionAOP" class="com.vvsvip.common.tx.DistributedTransactionAop" scope="prototype"/>
+    <bean id="transactionMessageAopBean" class="com.vvsvip.common.tx.TransactionMessageAop" scope="prototype"/>
+    <aop:config>
+        <aop:pointcut id="transactionPointcut" expression="execution(public * com.vvsvip.dubbo..say*(..))"/>
+        <aop:aspect id="distributedTransactionProviderSideAOP" ref="distributedTransactionProviderSideAOP" order="6">
+            <aop:around pointcut-ref="transactionPointcut" method="doAround"/>
+        </aop:aspect>
+        <aop:aspect id="distributedTransactionAOP" ref="distributedTransactionAOP" order="5">
+            <aop:around method="around" pointcut-ref="transactionPointcut"/>
+            <aop:after-throwing method="throwing" pointcut-ref="transactionPointcut"/>
+        </aop:aspect>
+        <aop:aspect id="transactionMessageAop" ref="transactionMessageAopBean" order="3">
+            <aop:around pointcut-ref="transactionPointcut" method="around"/>
+        </aop:aspect>
+    </aop:config>
+    <import resource="spring-cloud.xml"/>
+</beans>

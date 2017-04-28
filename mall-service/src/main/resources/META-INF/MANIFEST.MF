@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Implementation-Vendor: Pivotal Software, Inc.
+Implementation-Title: server
+Implementation-Version: 1.0-SNAPSHOT
+Implementation-Vendor-Id: com.vvsvip
+Built-By: blues
+Build-Jdk: 1.7.0_51
+Created-By: Apache Maven 3.3.9
+Implementation-URL: http://www.vvsvip.com/server
+Archiver-Version: Plexus Archiver

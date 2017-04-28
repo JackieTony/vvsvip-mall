@@ -1,0 +1,79 @@
+<configuration scan="true" scanPeriod="1 minutes">
+    <property name="app.logdir" value="out/log"></property>
+    <property name="log.error.dir" value="error"></property>
+    <property name="log.basic.dir" value="basic"></property>
+    <property name="app.name" value="server"></property>
+    <property name="error.log.name" value="${app.name}.error"></property>
+    <property name="basic.log.name" value="${app.name}.basic"></property>
+    <property name="ConsoleLogPattern"
+              value="[%d{yyyy-MM-dd HH:mm:ss.SSS}][%logger.%M][%level] %msg%n"/>
+
+    <property name="FileLogPattern"
+              value="[%d{yyyy-MM-dd HH:mm:ss.SSS}][thread:%thread][%level] %msg%n"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>DEBUG</level>
+        </filter>
+        <encoder>
+            <pattern>${ConsoleLogPattern}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${app.logdir}/${log.error.dir}/${error.log.name}.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${app.logdir}/${error.log.name}.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${FileLogPattern}</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="BASIC_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${app.logdir}/${log.basic.dir}/${basic.log.name}.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>DENY</onMatch>
+            <onMismatch>ACCEPT</onMismatch>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${app.logdir}/${basic.log.name}.%d{yyyy-MM-dd}.log.gz</fileNamePattern>
+            <maxHistory>90</maxHistory>
+        </rollingPolicy>
+
+        <encoder>
+            <pattern>${FileLogPattern}</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ALL < TRACE < DEBUG < INFO < WARN < ERROR < OFF -->
+    <!-- logger -->
+    <logger name="com.ccb" level="INFO" additivity="false">
+        <appender-ref ref="ERROR_FILE"/>
+    </logger>
+    <logger name="com.ccb" level="INFO" additivity="false">
+        <appender-ref ref="BASIC_FILE"/>
+    </logger>
+    <!-- <logger name="com.ccb" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE" />
+    </logger> -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/> <!-- 标识这个appender将会添加到这个logger -->
+    </root>
+    logger name="org.springframework" level="WARN"/>
+    <logger name="org.springframework.remoting" level="WARN"/>
+    <logger name="org.springframework.scheduling.quartz" level="WARN"/>
+    <logger name="org.springframework.data.jpa" level="DEBUG"/>
+    <logger name="org.cometd" level="WARN"/>
+    <logger name="ch.qos.logback" level="WARN"/>
+    <logger name="com.springapp.mvc" level="DEBUG"/>
+    <logger name="org.apache.zookeeper" level="ERROR"/>
+</configuration>

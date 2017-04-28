@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns="http://www.springframework.org/schema/beans"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+        http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context-4.3.xsd
+        http://www.springframework.org/schema/aop
+        http://www.springframework.org/schema/aop/spring-aop-4.3.xsd">
+
+    <context:component-scan base-package="com.vvsvip"/>
+
+    <aop:aspectj-autoproxy proxy-target-class="true"/>
+
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxTotal" value="30"/>
+        <property name="maxIdle" value="10"/>
+        <property name="numTestsPerEvictionRun" value="1024"/>
+        <property name="timeBetweenEvictionRunsMillis" value="30000"/>
+        <property name="minEvictableIdleTimeMillis" value="180000"/>
+        <property name="softMinEvictableIdleTimeMillis" value="10000"/>
+        <property name="maxWaitMillis" value="1500"/>
+        <property name="testOnBorrow" value="true"/>
+        <property name="testWhileIdle" value="true"/>
+        <property name="blockWhenExhausted" value="false"/>
+    </bean>
+    <bean id="shardedJedisPool" class="redis.clients.jedis.ShardedJedisPool" destroy-method="close">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig"/>
+        <constructor-arg name="shards">
+            <list>
+                <bean class="redis.clients.jedis.JedisShardInfo">
+                    <constructor-arg name="host" value="127.0.0.1"/>
+                    <constructor-arg name="port" value="6379"/>
+                    <property name="password" value="admin"/>
+                </bean>
+            </list>
+        </constructor-arg>
+    </bean>
+
+    <bean id="zkClient" class="org.I0Itec.zkclient.ZkClient" scope="prototype">
+        <constructor-arg name="zkServers" value="192.168.214.100:2181,192.168.214.101:2181"/>
+        <constructor-arg name="sessionTimeout" value="5000"/>
+        <constructor-arg name="connectionTimeout" value="20000"/>
+    </bean>
+
+    <bean id="distributedTransactionAopBean" class="com.vvsvip.common.tx.DistributedTransactionConsumerSideAOP"
+          scope="prototype"/>
+    <bean id="transactionSupportAopBean" class="com.vvsvip.common.tx.DisstibutedTransactionSupportAOP"
+          scope="prototype"/>
+    <aop:config>
+        <aop:pointcut id="transactionPointcut" expression="execution(public * com.vvsvip.test.TestTransaction.*(..))"/>
+        <aop:aspect id="distributedTransactionAop" ref="distributedTransactionAopBean" order="6">
+            <aop:around pointcut-ref="transactionPointcut" method="around"/>
+            <aop:after-throwing pointcut-ref="transactionPointcut" method="doAfterThrow"/>
+        </aop:aspect>
+        <aop:aspect id="transactionSupport" ref="transactionSupportAopBean">
+            <aop:before pointcut="execution(public * com.vvsvip.shop.test.service..*(..))" method="before"/>
+        </aop:aspect>
+    </aop:config>
+
+</beans>

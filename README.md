@@ -1,2 +1,2 @@
 # vvsvip-mall
-distributed 这是一个测试项目
+一个需要完善的框架
